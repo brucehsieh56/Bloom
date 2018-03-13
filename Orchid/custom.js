@@ -165,16 +165,19 @@ document.getElementById('inputFile').onchange = function() {
 				// save input file line by line
 				obs.push(x.split(","));
 
-				// build geojson object and add to the layer points
-				geojson = L.geoJSON(get_geojson(x.split(",")), {
-					pointToLayer: function (feature, latlng) {
-						return L.circleMarker(latlng, geojsonMarkerOptions);
-					},
-					onEachFeature: onEachFeature
-				})
+				// build geojson object and add to the layer points if having location
+				if (x.split(",")[0] != "") {
+					
+					geojson = L.geoJSON(get_geojson(x.split(",")), {
+						pointToLayer: function (feature, latlng) {
+							return L.circleMarker(latlng, geojsonMarkerOptions);
+						},
+						onEachFeature: onEachFeature
+					})
 
-				geojson.addTo(layerPoints);
-				// L.geoJson(get_geojson(x.split(","))).addTo(layerPoints);
+					geojson.addTo(layerPoints);
+					// L.geoJson(get_geojson(x.split(","))).addTo(layerPoints);
+				}
 
 			};
 
@@ -190,7 +193,8 @@ document.getElementById('inputFile').onchange = function() {
 		obsTable = $('#obsTable').DataTable( {
 			data: obs,
 			columns: columnNames,
-			scrollX: true
+			scrollX: true,
+			scrollY: true
 		});
 
 		// MAIN CODE 3: Filter table content
@@ -208,21 +212,24 @@ document.getElementById('inputFile').onchange = function() {
 
     		// add points to the layer
     		for (let i = 0; i < numObs; i++) {
-					// L.geoJson(get_geojson(x[i])).addTo(layerPoints);
-					geojson = L.geoJSON(get_geojson(x[i]), {
-						pointToLayer: function (feature, latlng) {
-							return L.circleMarker(latlng, geojsonMarkerOptions);
-						},
-						onEachFeature: onEachFeature
-					})
+					
+    			// build geojson object and add to the layer if having location info
+					if (x[i][0] != "") {
+						geojson = L.geoJSON(get_geojson(x[i]), {
+							pointToLayer: function (feature, latlng) {
+								return L.circleMarker(latlng, geojsonMarkerOptions);
+							},
+							onEachFeature: onEachFeature
+						})
 
-					// update marker size
-					geojson.setStyle({
-						radius: Number(mkSize.innerHTML)
-					});
+						// update marker size
+						geojson.setStyle({
+							radius: Number(mkSize.innerHTML)
+						});
 
-					// add to layer
-					geojson.addTo(layerPoints);
+						// add to layer
+						geojson.addTo(layerPoints);
+					}
 				};
 
 				// add back layer control
