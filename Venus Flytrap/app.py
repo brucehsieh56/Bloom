@@ -18,12 +18,7 @@ app = gui("Venus Flytrap")
 def zillow(row, ZWSID):
 	""" func for query house price given ZWSID """
     
-    # query url
-	url = 'http://www.zillow.com/webservice/GetSearchResults.htm?zws-id=' + \
-		ZWSID + '&address=' + '+'.join(row.address1.split(" ")) + \
-		'&citystatezip=' + row.zipcode
-	
-	# regular expression
+    # regular expression
 	PATTERN = ['<code>.*</code>', '<zpid>.*</zpid>', '<city>.*</city>',
 				'<state>.*</state>', '<latitude>.*</latitude>',
 				'<longitude>.*</longitude>',
@@ -31,6 +26,17 @@ def zillow(row, ZWSID):
 				'<low currency="USD">.*</low>',
 				'<high currency="USD">.*</high>',
 				'<last-updated>.*</last-updated>']
+
+	# if no zipcode
+	if row.isnull().zipcode:
+		return pd.Series([np.nan for i in range(len(PATTERN))])
+
+    # query url
+	url = 'http://www.zillow.com/webservice/GetSearchResults.htm?zws-id=' + \
+		ZWSID + '&address=' + '+'.join(row.address1.split(" ")) + \
+		'&citystatezip=' + row.zipcode
+	
+	
 
 	# start query
 	with urllib.request.urlopen(url) as response:
@@ -149,7 +155,7 @@ def get_file(excel_file):
 		col = ['z_errorcode', 'zpid', 'z_city', 'z_state', 'z_lat', 'z_lon',
 				'z_price', 'z_lowprice', 'z_highprice', 'z_last_updated']
 
-		customer_sub = customer.iloc[:2,]	# debug
+		customer_sub = customer.iloc[:20,]	# debug
 
 		# get house price
 		temp = customer_sub.apply(lambda row: zillow(row, ZWSID), axis=1)
