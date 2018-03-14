@@ -45,9 +45,14 @@ def zillow(row, ZWSID):
 
 		data = []
 		for i in range(len(PATTERN)):
-			obs = re.findall(PATTERN[i], content)
-			obs = re.findall('>.*<', obs[0])[0][1:-1]
+			
+			# check error code
 			if i == 0:
+
+				obs = re.findall(PATTERN[i], content)
+				obs = re.findall('>.*<', obs[0])[0][1:-1]
+
+				# everything is fine
 				if obs == '0':
 					data.append(obs)
 
@@ -62,6 +67,12 @@ def zillow(row, ZWSID):
 					data.extend([np.nan for i in range(len(PATTERN)-1)])
 					break
 			else:
+
+				# use the fisrt one (out of multiple results)
+				if i == 1:
+					content = content[:re.search('</result>', content).start()]
+				obs = re.findall(PATTERN[i], content)
+				obs = re.findall('>.*<', obs[0])[0][1:-1]
 				data.append(obs)
 
 	return pd.Series(data)
@@ -155,7 +166,7 @@ def get_file(excel_file):
 		col = ['z_errorcode', 'zpid', 'z_city', 'z_state', 'z_lat', 'z_lon',
 				'z_price', 'z_lowprice', 'z_highprice', 'z_last_updated']
 
-		customer_sub = customer.iloc[:20,]	# debug
+		customer_sub = customer.iloc[65:69,]	# debug
 
 		# get house price
 		temp = customer_sub.apply(lambda row: zillow(row, ZWSID), axis=1)

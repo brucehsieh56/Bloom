@@ -194,7 +194,7 @@ document.getElementById('inputFile').onchange = function() {
 			data: obs,
 			columns: columnNames,
 			scrollX: true,
-			scrollY: true
+			scrollY: '60vh',
 		});
 
 		// MAIN CODE 3: Filter table content
