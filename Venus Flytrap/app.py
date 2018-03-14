@@ -137,7 +137,7 @@ def get_file(excel_file):
 
 	# build df
 	customer = pd.DataFrame({"name": df[mask].base_info.values, 
-		"address1": df[np.roll(mask, 1)].base_info.values, 
+		"address1": df[np.roll(mask, 1)].base_info.str.replace(",", "").values, 
 		"address2": df[np.roll(mask, 4)].base_info.str.replace(",", ""), 
 		"date_paid": df[mask].date.values, 
 		"amt_paid": df[np.roll(mask, 2)].date.values, 
@@ -166,7 +166,7 @@ def get_file(excel_file):
 		col = ['z_errorcode', 'zpid', 'z_city', 'z_state', 'z_lat', 'z_lon',
 				'z_price', 'z_lowprice', 'z_highprice', 'z_last_updated']
 
-		customer_sub = customer.iloc[65:69,]	# debug
+		customer_sub = customer.iloc[200:350,]	# debug
 
 		# get house price
 		temp = customer_sub.apply(lambda row: zillow(row, ZWSID), axis=1)
