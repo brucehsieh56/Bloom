@@ -1,6 +1,8 @@
 // TODO: add different marker
 // TODO: add hover info
 // TODO: add Tooltips
+// TODO: add current # of points
+// TODO: add weekly, monthly graph
 
 // ===== Tooltips ==============================================================
 $(function () {
@@ -34,26 +36,27 @@ slider.oninput = function() {
 var info = L.control();	// customer info
 var geojson;
 
-var	mapWiki = L.tileLayer("https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png");
-var mapOSM = L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png");
-var	mapStaToner = L.tileLayer("http://a.tile.stamen.com/toner/{z}/{x}/{y}.png");
-var	mapStaWater = L.tileLayer("http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.jpg");
+var mOSM = L.tileLayer("http://{s}.tile.osm.org/{z}/{x}/{y}.png");
+var	mWiki = L.tileLayer("https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png");
+var	mStaToner = L.tileLayer("http://a.tile.stamen.com/toner/{z}/{x}/{y}.png");
+var	mStaWater = L.tileLayer("http://c.tile.stamen.com/watercolor/{z}/{x}/{y}.jpg");
 var baseMaps = { 
-	"Wiki": mapWiki,
-	"OSM": mapOSM,
-  "StamenToner": mapStaToner, 
-  "StamenWaterColor": mapStaWater
+	"OSM": mOSM,
+	"Wiki": mWiki,
+  "StamenToner": mStaToner, 
+  "StamenWaterColor": mStaWater
   };
 
 // initialize a map
 var geomap = L.map('geomap', {
   center: [37.0902, -98.35],
 	zoom: 4,
-	layers: [mapWiki]
+	layers: [mOSM]
 	});
 
 // for collecting data points
 var layerPoints = L.layerGroup().addTo(geomap);
+
 
 // set default marker style
 var geojsonMarkerOptions = {
@@ -134,6 +137,8 @@ function onEachFeature(feature, layer) {
 }
 
 
+let layerControl = L.control.layers(baseMaps).addTo(geomap);	// add control layer
+
 // ===== Events ================================================================
 document.getElementById('inputFile').onchange = function() {
 
@@ -143,7 +148,6 @@ document.getElementById('inputFile').onchange = function() {
 	reader.onload = function() {
 
 		let skipCount = 0;	// for reading column names
-		let layerControl = L.control.layers(baseMaps).addTo(geomap);	// add control layer
 		let columnNames = [];
 		let obs = [];	// for collectin data (observations)
 		let obsTable;	// for building table
@@ -167,8 +171,10 @@ document.getElementById('inputFile').onchange = function() {
 
 				// build geojson object and add to the layer points if having location
 				if (x.split(",")[0] != "") {
-					
-					geojson = L.geoJSON(get_geojson(x.split(",")), {
+
+					let row = x.split(",");
+					 
+					geojson = L.geoJSON(get_geojson(row), {
 						pointToLayer: function (feature, latlng) {
 							return L.circleMarker(latlng, geojsonMarkerOptions);
 						},
