@@ -4,17 +4,16 @@
 
 import re
 import os
-# import sys
 import datetime
 import urllib.request
 import numpy as np
 import pandas as pd
-# from agefromname import AgeFromName
+from agefromname import AgeFromName
 from appJar import gui
 
 # initialize
 ZWSID = ""
-# afn = AgeFromName()
+afn = AgeFromName()
 app = gui("Venus Flytrap")
 
 # define functions and events
@@ -154,19 +153,9 @@ def get_file(excel_file):
 	customer['zipcode'] = customer.address2.str.extract('(\d{5})', expand=False)
 
 	# predict gender:
-	# filepath = "mortality_table.csv.gz"
-	# if hasattr(sys, '_MEIPASS'):
-	# 	filepath = os.path.join(sys._MEIPASS, filepath)
-	# 	print("00")
-	# else:
-	# 	file_name = os.path.join(os.path.abspath("."), filepath)
-	# 	print("11")
-
-	# xxx = pd.read_csv(filepath)
-	# app.setLabel("msg1", xxx.iloc[0,:2])
-	# customer = customer.iloc[:5, :]
-	# customer['p_gender'] = customer.apply(lambda row: afn.prob_female(row['name'].split(" ")[0],
-		# current_year=2018, minimum_age=10), axis=1)
+	customer = customer.iloc[:5, :]
+	customer['p_gender'] = customer.apply(lambda row: afn.prob_female(row['name'].split(" ")[0],
+		current_year=2018, minimum_age=10), axis=1)
 
 
 	# save file if no ZWSID provided
@@ -220,7 +209,8 @@ app.setEntryChangeFunction("f1", get_file)
 # app.addHorizontalSeparator()
 
 # layout: show successful / error msg
-app.addLabel("msg1", "")
+# app.addLabel("msg1", "")
+# app.setResizable(False)
 
 app.go()
 

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import datetime
 import urllib.request
-
+from scipy.optimize import curve_fit
 from PyQt5.QtCore import pyqtSlot, pyqtSignal
 from PyQt5.QtWidgets import (QApplication, QWidget, QFileDialog, QLineEdit, 
 	QInputDialog, QPushButton, QMessageBox, QVBoxLayout, QLabel, QProgressBar)
@@ -21,13 +21,15 @@ class App(QWidget):
 	def __init__(self):
 		""" initizliation """
 
-		# initialize QWidget 
+		# inherits from QWidget 
 		super().__init__()
 
 		# default values
 		self.title = "Venus Flytrap"
 		self.ZWSID = ""
 		self.yr = datetime.datetime.now().year
+		self.min_age = 10
+		self.max_age = 90
 		self.initUI()
 
 
@@ -175,7 +177,8 @@ class App(QWidget):
 			yob = pd.read_csv(os.path.join(os.path.abspath("."), gov_data[1]))
 
 
-		def get_estimated_counts(first_name, cur_yr, sex, min_age=10, max_age=90):
+		def get_estimated_counts(first_name, sex, cur_yr=self.yr, 
+			min_age=self.min_age, max_age=self.max_age):
 
 			# lowercase
 			first_name = first_name.lower()
@@ -204,12 +207,13 @@ class App(QWidget):
 			return cur_df.set_index('year_of_birth')['estimated_count']
 
 
-		def get_prob_male(first_name, cur_yr=self.yr, min_age=10, max_age=90):
+		def get_prob_male(first_name, cur_yr=self.yr, min_age=self.min_age,
+			max_age=self.max_age):
 			""" predict probability of a ppl to be a male given first name """
 
 			# count
-			male_count = get_estimated_counts(first_name, cur_yr, 'm').sum()
-			female_count = get_estimated_counts(first_name, cur_yr, 'f').sum()
+			male_count = get_estimated_counts(first_name, 'm').sum()
+			female_count = get_estimated_counts(first_name, 'f').sum()
 
 			# udpate progress
 			self.update_progress()
@@ -221,12 +225,17 @@ class App(QWidget):
 				return male_count * 1. / (male_count + female_count)
 
 
-		def get_gender(first_name):
+		def get_gender(row):
 			""" return gender based on probability """
 
-			if first_name.lower() in "ms.":
+			# get first name
+			first_name = row['name'].split(" ")[0].lower()
+
+			# special case:
+			if first_name in "ms.":
 				return "F"
 
+			# get gender according to the probability
 			probability = get_prob_male(first_name)
 			if probability > .5:
 				return "M"
@@ -234,6 +243,85 @@ class App(QWidget):
 				return "F"
 			else:
 				return ""
+
+
+		def gaussian(x, amp, mu, sigma):
+			""" gaussian formula for curve fitting """
+			return amp * np.exp(-(x-mu)**2/(2*(sigma**2)))
+
+
+		def bimodal(x, a1, mu1, sigma1, a2, mu2, sigma2):
+			""" two gaussian for curve fitting """
+			return gaussian(x, a1, mu1, sigma1) + gaussian(x, a2, mu2, sigma2)
+
+
+		def get_age(row, cur_yr=self.yr):
+			""" guess age range"""
+
+			# get parameters
+			gender = row.p_gender
+			first_name = row["name"].split(" ")[0]
+
+			if gender == "M":
+				count = get_estimated_counts(first_name, 'm')
+			elif gender == "F":
+				count = get_estimated_counts(first_name, 'f')
+			else:
+				return ""
+
+			# beginning yr for age
+			yr_base = count.index[0]
+
+			# all yr
+			yr_x = count.index.tolist()
+
+			# try 1 guassian
+			try:
+
+				# boundary for (amp, mu, sigma)
+				bounds = ((0, yr_base, 0), (count.max()*1.5, cur_yr, 15))
+
+				# curve fitting
+				popt, pcov = curve_fit(gaussian, yr_x, count, bounds=bounds)
+				amp, mu, sigma = [int(abs(round(p))) for p in popt]
+
+				# special case
+				if mu + sigma >= cur_yr:
+					# go to except
+					raise Exception('Exception: 1 gaussian not work')
+
+				# if sigma >= 10:
+					# sigma = 10
+
+				return str(cur_yr-mu) + "+-" + str(sigma)
+
+			# try 2 gaussian
+			except:
+
+				# boundary for (amp1, mu1, sigma1, amp2, mu2, sigma2)
+				bounds = ((0, yr_base, 0, 0, yr_base, 0), 
+					(count.max()*1.5, cur_yr, 15, count.max()*1.5, cur_yr, 15))
+
+				# expected (amp1, mu1, sigma1, amp2, mu2, sigma2)
+				expected = (count.mean(), np.mean(yr_x)-1*np.std(yr_x), 10,
+					count.mean(), np.mean(yr_x)+1*np.std(yr_x), 10)
+
+				# curve fitting
+				popt, pcov = curve_fit(bimodal, yr_x, count, expected, bounds=bounds)
+				a1, mu1, sigma1, a2, mu2, sigma2 = [int(abs(round(p))) for p in popt]
+
+				if a2 > a1:
+					lower_bound = cur_yr - mu2 - sigma2
+					if (lower_bound <= self.min_age) or (lower_bound < 0):
+						return ""
+					else:
+						return str(cur_yr-mu2) + "+-" + str(sigma2)
+				else:
+					lower_bound = cur_yr - mu1 - sigma1
+					if (lower_bound <= self.min_age) or (lower_bound < 0):
+						return ""
+					else:
+						return str(cur_yr-mu1) + "+-" + str(sigma1)
 
 
 		def zillow(row, ZWSID):
@@ -306,48 +394,62 @@ class App(QWidget):
 			return pd.Series(data)
 
 
-		customer = customer.iloc[:3]	# debug
+		def get_house_price(customer, ZWSID=self.ZWSID):
+
+			""" get house price given ZWSID """
+			
+			# get house price or not
+			if self.ZWSID == "":
+
+				file_name, _ = QFileDialog.getSaveFileName(self, 
+					"Save your file",
+					"customer_info_" + datetime.date.today().strftime("%Y%m%d"),
+					'*.csv')
+
+			else:
+
+				# set column names
+				col = ['z_errorcode', 'zpid', 'z_city', 'z_state', 'z_lat',
+				'z_lon', 'z_price', 'z_lowprice', 'z_highprice', 'z_last_updated']
+
+				# get house price
+				temp = customer.apply(lambda row: zillow(row, self.ZWSID), axis=1)
+				temp.columns = col
+
+				# merge data
+				customer = pd.concat([customer, temp], axis=1)
+				customer = customer[['z_lon', 'z_lat', 'address1', 'address2', 
+					'amt_paid', 'date_paid', 'name', 'product', 'qty', 
+					'record_no', 'total_price', 'unit_price', 'zipcode', 
+					'z_errorcode', 'zpid', 'z_city', 'z_state', 'z_price', 
+					'z_lowprice', 'z_highprice', 'z_last_updated']]
+
+				file_name, _ = QFileDialog.getSaveFileName(self, 
+					"Save your file", 
+					"customer_info_zillow_" + datetime.date.today().strftime("%Y%m%d"),
+					'*.csv')
+
+			# save file
+			if file_name:
+				customer.to_csv(file_name, index=False)
+				QMessageBox.about(self, "Nice", "Customer info extracted")
+		
+
+
+		customer = customer.iloc[21:25]	# debug
 
 		# setup progress bar increment unit
 		self.p = 1 / len(customer) * 100
 
 		# guess gender
-		customer['p_gender'] = customer.apply(lambda row: 
-			get_prob_male(row['name'].split(" ")[0]), axis=1)
+		customer['p_gender'] = customer.apply(lambda row: get_gender(row), axis=1)
 
-		# get house price or not
-		if self.ZWSID == "":
+		# guess age
+		customer['p_age'] = customer.apply(lambda row: get_age(row), axis=1)
 
-			file_name, _ = QFileDialog.getSaveFileName(self, "Save your file",
-				"customer_info_" + datetime.date.today().strftime("%Y%m%d"),
-				'*.csv')
-			
-		else:
+		# get house price
+		get_house_price(customer)
 
-			# set column names
-			col = ['z_errorcode', 'zpid', 'z_city', 'z_state', 'z_lat', 'z_lon',
-				'z_price', 'z_lowprice', 'z_highprice', 'z_last_updated']
-
-			# get house price
-			temp = customer.apply(lambda row: zillow(row, self.ZWSID), axis=1)
-			temp.columns = col
-
-			# merge data
-			customer = pd.concat([customer, temp], axis=1)
-			customer = customer[['z_lon', 'z_lat', 'address1', 'address2', 
-				'amt_paid', 'date_paid', 'name', 'product', 'qty', 'record_no', 
-				'total_price', 'unit_price', 'zipcode', 'z_errorcode', 
-				'zpid', 'z_city', 'z_state', 'z_price', 'z_lowprice', 
-				'z_highprice', 'z_last_updated']]
-
-			file_name, _ = QFileDialog.getSaveFileName(self, "Save your file",
-				"customer_info_zillow_" + datetime.date.today().strftime("%Y%m%d"),
-				'*.csv')
-
-		# save file
-		if file_name:
-			customer.to_csv(file_name, index=False)
-			QMessageBox.about(self, "Nice", "Customer info extracted")
 
 
 	
